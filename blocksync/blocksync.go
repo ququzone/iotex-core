@@ -84,6 +84,7 @@ type blockSyncer struct {
 	dao                   BlockDAO
 	unicastHandler        UnicastOutbound
 	syncStageTask         *routine.RecurringTask
+	syncStageTaskInterval time.Duration
 	syncStageHeight       uint64
 	syncBlockIncrease     uint64
 }
@@ -116,8 +117,9 @@ func NewBlockSyncer(
 		unicastHandler:        bsCfg.unicastHandler,
 		worker:                newSyncWorker(chain.ChainID(), cfg, bsCfg.unicastHandler, bsCfg.neighborsHandler, buf),
 		processSyncRequestTTL: cfg.BlockSync.ProcessSyncRequestTTL,
+		syncStageTaskInterval: cfg.BlockSync.Interval,
 	}
-	bs.syncStageTask = routine.NewRecurringTask(bs.syncStageChecker, config.DardanellesBlockInterval)
+	bs.syncStageTask = routine.NewRecurringTask(bs.syncStageChecker, bs.syncStageTaskInterval)
 	atomic.StoreUint64(&bs.syncBlockIncrease, 0)
 	return bs, nil
 }
@@ -221,5 +223,5 @@ func (bs *blockSyncer) SyncStatus() string {
 	if syncBlockIncrease == 1 {
 		return "synced to blockchain tip"
 	}
-	return fmt.Sprintf("sync in progress at %.1f blocks/sec", float64(syncBlockIncrease)/config.DardanellesBlockInterval.Seconds())
+	return fmt.Sprintf("sync in progress at %.1f blocks/sec", float64(syncBlockIncrease)/bs.syncStageTaskInterval.Seconds())
 }

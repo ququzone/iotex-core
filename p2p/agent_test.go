@@ -50,7 +50,7 @@ func TestBroadcast(t *testing.T) {
 	u := func(_ context.Context, _ uint32, _ peerstore.PeerInfo, _ proto.Message) {}
 	bootnodePort := testutil.RandomPort()
 	cfg := config.Config{
-		Network: config.Network{Host: "127.0.0.1", Port: bootnodePort},
+		Network: config.Network{Host: "127.0.0.1", Port: bootnodePort, ReconnectInterval: 2 * time.Second},
 	}
 	bootnode := NewAgent(cfg, b, u)
 	require.NoError(t, bootnode.Start(ctx))
@@ -69,9 +69,10 @@ func TestBroadcast(t *testing.T) {
 		port := bootnodePort + i + 1
 		cfg := config.Config{
 			Network: config.Network{
-				Host:           "127.0.0.1",
-				Port:           port,
-				BootstrapNodes: []string{addrs[0].String()},
+				Host:              "127.0.0.1",
+				Port:              port,
+				BootstrapNodes:    []string{addrs[0].String()},
+				ReconnectInterval: 2 * time.Second,
 			},
 		}
 		agent := NewAgent(cfg, b, u)
@@ -131,7 +132,7 @@ func TestUnicast(t *testing.T) {
 	}
 
 	bootnode := NewAgent(config.Config{
-		Network: config.Network{Host: "127.0.0.1", Port: testutil.RandomPort()},
+		Network: config.Network{Host: "127.0.0.1", Port: testutil.RandomPort(), ReconnectInterval: 2 * time.Second},
 	}, b, u)
 	require.NoError(t, bootnode.Start(ctx))
 
@@ -140,9 +141,10 @@ func TestUnicast(t *testing.T) {
 	for i := 0; i < n; i++ {
 		cfg := config.Config{
 			Network: config.Network{
-				Host:           "127.0.0.1",
-				Port:           testutil.RandomPort(),
-				BootstrapNodes: []string{addrs[0].String()},
+				Host:              "127.0.0.1",
+				Port:              testutil.RandomPort(),
+				BootstrapNodes:    []string{addrs[0].String()},
+				ReconnectInterval: 2 * time.Second,
 			},
 		}
 		agent := NewAgent(cfg, b, u)
