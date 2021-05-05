@@ -117,6 +117,7 @@ func (b *blockBuffer) Flush(blk *block.Block) (uint64, bCheckinResult) {
 		if blk == nil {
 			break
 		}
+		l.Info("Committing block", zap.Uint64("height", blk.Height()))
 		if b.commitBlock(blk, l) {
 			syncedHeight++
 		} else {
@@ -139,8 +140,10 @@ func (b *blockBuffer) commitBlock(blk *block.Block, l *zap.Logger) bool {
 			l.Info("Successfully committed block.", zap.Uint64("syncedHeight", blk.Height()))
 			return true
 		case blockchain.ErrInvalidTipHeight:
+			l.Info("Skip block.", zap.Error(err), zap.Uint64("syncHeight", blk.Height()))
 			return true
 		case block.ErrDeltaStateMismatch:
+			l.Info("Delta state mismatched.", zap.Uint64("syncHeight", blk.Height()))
 			continue
 		case poll.ErrProposedDelegatesLength, poll.ErrDelegatesNotAsExpected, db.ErrNotExist:
 			l.Debug("Failed to commit the block.", zap.Error(err), zap.Uint64("syncHeight", blk.Height()))
