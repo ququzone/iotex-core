@@ -10,6 +10,7 @@ import (
 	"context"
 	"math/rand"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -25,16 +26,18 @@ type syncBlocksInterval struct {
 }
 
 type syncWorker struct {
-	chainID          uint32
-	mu               sync.RWMutex
-	mute             bool
-	targetHeight     uint64
-	unicastHandler   UnicastOutbound
-	neighborsHandler Neighbors
-	buf              *blockBuffer
-	task             *routine.RecurringTask
-	maxRepeat        int
-	repeatDecayStep  int
+	chainID               uint32
+	mu                    sync.RWMutex
+	mute                  bool
+	syncInterval          time.Duration
+	targetHeigtUpdateTime time.Time
+	targetHeight          uint64
+	unicastHandler        UnicastOutbound
+	neighborsHandler      Neighbors
+	buf                   *blockBuffer
+	task                  *routine.RecurringTask
+	maxRepeat             int
+	repeatDecayStep       int
 }
 
 func newSyncWorker(
@@ -45,16 +48,18 @@ func newSyncWorker(
 	buf *blockBuffer,
 ) *syncWorker {
 	w := &syncWorker{
-		chainID:          chainID,
-		unicastHandler:   unicastHandler,
-		neighborsHandler: neighborsHandler,
-		buf:              buf,
-		targetHeight:     0,
-		maxRepeat:        cfg.BlockSync.MaxRepeat,
-		repeatDecayStep:  cfg.BlockSync.RepeatDecayStep,
+		chainID:               chainID,
+		unicastHandler:        unicastHandler,
+		neighborsHandler:      neighborsHandler,
+		buf:                   buf,
+		syncInterval:          cfg.BlockSync.Interval,
+		targetHeigtUpdateTime: time.Now(),
+		targetHeight:          0,
+		maxRepeat:             cfg.BlockSync.MaxRepeat,
+		repeatDecayStep:       cfg.BlockSync.RepeatDecayStep,
 	}
-	if cfg.BlockSync.Interval != 0 {
-		w.task = routine.NewRecurringTask(w.Sync, cfg.BlockSync.Interval)
+	if w.syncInterval != 0 {
+		w.task = routine.NewRecurringTask(w.Sync, w.syncInterval)
 	}
 	return w
 }
@@ -78,6 +83,7 @@ func (w *syncWorker) SetTargetHeight(h uint64) {
 	defer w.mu.Unlock()
 	if h > w.targetHeight {
 		w.targetHeight = h
+		w.targetHeigtUpdateTime = time.Now()
 	}
 }
 
@@ -85,7 +91,8 @@ func (w *syncWorker) SetTargetHeight(h uint64) {
 func (w *syncWorker) Sync() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.mute {
+	forceSync := w.targetHeigtUpdateTime.Add(2 * w.syncInterval).Before(time.Now())
+	if w.mute && !forceSync {
 		return
 	}
 
@@ -99,11 +106,15 @@ func (w *syncWorker) Sync() {
 		log.L().Warn("Error when get neighbor peers.", zap.Error(err))
 		return
 	}
-	intervals := w.buf.GetBlocksIntervalsToSync(w.targetHeight)
+	targetHeight := uint64(0)
+	if !forceSync {
+		targetHeight = w.targetHeight
+	}
+	intervals := w.buf.GetBlocksIntervalsToSync(targetHeight)
 	if intervals != nil {
 		log.L().Info("block sync intervals.",
 			zap.Any("intervals", intervals),
-			zap.Uint64("targetHeight", w.targetHeight))
+			zap.Uint64("targetHeight", targetHeight))
 	}
 
 	for i, interval := range intervals {
